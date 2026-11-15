@@ -13,8 +13,8 @@ const I18N = {
     heroTitle: 'Every video,<br><span>one player</span>',
     heroSub: 'MP4, MKV, AVI, WMV, FLV, MOV, TS and more. Nothing is uploaded.',
     f1: '👆 Gestures', f2: '💬 Subtitles', f3: '🎵 Audio track', f4: '⏩ Speed', f5: '🔊 Boost 200%', f6: '🎚 Equalizer', f7: '🔁 A-B repeat', f8: '📸 Screenshot',
-    pick: 'Open videos', folder: 'Open a folder', drop: 'Or drag & drop videos here (PC)',
-    t1h: 'Mobile', t1: 'Gallery → video → Share → SP02', t2h: 'PC', t2: 'Right-click video → Open with → SP02 (after installing)',
+    pick: 'Open videos', folder: 'Add folder', drop: 'Or drag & drop videos here (PC)',
+    apk: 'Get Android app (auto scan)', t1h: 'Mobile', t1: 'Gallery → video → Share → SP02', t2h: 'PC', t2: 'Right-click video → Open with → SP02 (after installing)',
     t3h: 'Gestures', t3: 'Left side ↕ brightness · Right side ↕ volume · ↔ seek · Double-tap ±10s · Pinch zoom',
     foot: 'Your videos stay on your device', unlock: 'Tap to unlock', cancel: 'Cancel',
     brightness: 'Brightness', volume: 'Volume', zoom: 'Zoom', locked: 'Screen locked', unlocked: 'Unlocked',
@@ -44,8 +44,8 @@ const I18N = {
     heroTitle: 'हर वीडियो,<br><span>एक प्लेयर</span>',
     heroSub: 'MP4, MKV, AVI, WMV, FLV, MOV, TS और भी। कुछ भी अपलोड नहीं होता।',
     f1: '👆 जेस्चर', f2: '💬 सबटाइटल', f3: '🎵 ऑडियो ट्रैक', f4: '⏩ स्पीड', f5: '🔊 बूस्ट 200%', f6: '🎚 इक्वलाइज़र', f7: '🔁 A-B रिपीट', f8: '📸 स्क्रीनशॉट',
-    pick: 'वीडियो खोलें', folder: 'फ़ोल्डर खोलें', drop: 'या वीडियो यहाँ खींचकर छोड़ें (PC)',
-    t1h: 'मोबाइल', t1: 'गैलरी → वीडियो → Share → SP02', t2h: 'PC', t2: 'वीडियो पर राइट-क्लिक → Open with → SP02 (इंस्टॉल के बाद)',
+    pick: 'वीडियो खोलें', folder: 'फ़ोल्डर जोड़ें', drop: 'या वीडियो यहाँ खींचकर छोड़ें (PC)',
+    apk: 'Android ऐप लें (अपने आप स्कैन)', t1h: 'मोबाइल', t1: 'गैलरी → वीडियो → Share → SP02', t2h: 'PC', t2: 'वीडियो पर राइट-क्लिक → Open with → SP02 (इंस्टॉल के बाद)',
     t3h: 'जेस्चर', t3: 'बाएँ ↕ रोशनी · दाएँ ↕ आवाज़ · ↔ आगे-पीछे · डबल-टैप ±10 सेकंड · दो उँगली से ज़ूम',
     foot: 'आपकी वीडियो आपके डिवाइस में ही रहती है', unlock: 'खोलने के लिए टैप करें', cancel: 'रद्द करें',
     brightness: 'रोशनी', volume: 'आवाज़', zoom: 'ज़ूम', locked: 'स्क्रीन लॉक', unlocked: 'अनलॉक',
@@ -79,6 +79,7 @@ function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-html]').forEach((el) => { el.innerHTML = t(el.dataset.i18nHtml); });
   $('#langBtn').textContent = lang === 'en' ? 'हिंदी' : 'English';
+  if (typeof renderLib === 'function') try { renderLib(); } catch {}
 }
 $('#langBtn').onclick = () => { lang = lang === 'en' ? 'hi' : 'en'; try { localStorage.setItem('sp02-lang', lang); } catch {} applyI18n(); };
 
@@ -119,25 +120,14 @@ let subs = { cues: [], delay: 0, size: store.get('subSize', 1), bg: store.get('s
 let sleepAt = null, sleepEnd = false;
 
 /* ---------------- Open files ---------------- */
-function openFiles(files) {
+function openFiles(files, start = 0, keepOrder = false) {
   files = [...(files || [])].filter(isMedia);
   if (!files.length) return;
-  files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  list = files; playIndex(0);
+  if (!keepOrder) files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  list = files; playIndex(Math.min(start, files.length - 1));
 }
 $('#pickBtn').onclick = () => $('#fileInput').click();
 $('#fileInput').onchange = (e) => { openFiles(e.target.files); e.target.value = ''; };
-if ('showDirectoryPicker' in window) {
-  $('#folderBtn').classList.remove('hidden');
-  $('#folderBtn').onclick = async () => {
-    try {
-      const dir = await window.showDirectoryPicker();
-      const out = [];
-      for await (const h of dir.values()) if (h.kind === 'file' && MEDIA_EXT.test(extOf(h.name))) out.push(await h.getFile());
-      openFiles(out);
-    } catch {}
-  };
-}
 const drop = $('#drop');
 ['dragenter', 'dragover'].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave', 'drop'].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
@@ -193,12 +183,13 @@ function playIndex(i) {
   savePos();
   idx = i; file = list[i];
   if (srcURL) URL.revokeObjectURL(srcURL);
-  srcURL = URL.createObjectURL(file);
+  srcURL = file.url || URL.createObjectURL(file);
   playingConverted = false; triedConvert = false; probeCache = null; audioIdx = 0;
   ab = { a: null, b: null }; renderAB();
   subs.cues = []; subs.delay = 0; renderSub(true);
   $('#title').textContent = file.name;
   document.title = file.name + ' · SP02';
+  if (P.classList.contains('hidden')) history.pushState({ player: 1 }, '');
   $('#home').classList.add('hidden'); P.classList.remove('hidden'); document.querySelector('header').classList.add('hidden');
   resumeAsked = false;
   setSrc(srcURL, false);
@@ -284,12 +275,14 @@ $('#ffBtn').onclick = () => skip(10);
 $('#prevBtn').onclick = () => { if (v.currentTime > 5 || idx === 0) v.currentTime = 0; else playIndex(idx - 1); };
 $('#nextBtn').onclick = () => { if (idx < list.length - 1) playIndex(idx + 1); };
 function skip(s) { v.currentTime = clamp(v.currentTime + s, 0, v.duration || 0); hud(`${s > 0 ? '+' : '−'}${Math.abs(s)}s`, fmt(v.currentTime)); showUI(); }
-$('#backBtn').onclick = closePlayer;
+$('#backBtn').onclick = () => { if (history.state?.player) history.back(); else closePlayer(); };
+window.addEventListener('popstate', () => { if (!$('#sheet').classList.contains('hidden')) { closeSheet(); history.pushState({ player: 1 }, ''); } else if (!P.classList.contains('hidden')) closePlayer(); });
 function closePlayer() {
   savePos(); v.pause(); v.removeAttribute('src'); v.load();
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   P.classList.add('hidden'); $('#home').classList.remove('hidden'); document.querySelector('header').classList.remove('hidden');
   document.title = 'SP02 - Video Player';
+  if (typeof renderLib === 'function') renderLib();
 }
 $('#fsBtn').onclick = toggleFS;
 async function toggleFS() {
@@ -613,7 +606,8 @@ $('#busyCancel').onclick = () => { cancelled = true; killEngine(); busy(false); 
 
 let mounted = false;
 async function mountInput() {
-  const safe = new File([file], 'input.' + (extOf(file.name) || 'bin'), { type: file.type });
+  const data = file instanceof Blob ? file : await (await fetch(file.url)).blob();
+  const safe = new File([data], 'input.' + (extOf(file.name) || 'bin'), { type: file.type });
   try {
     try { await ff.createDir('/in'); } catch {}
     await ff.mount('WORKERFS', { files: [safe] }, '/in'); mounted = true;
@@ -893,12 +887,276 @@ $('#plBtn').onclick = () => {
   });
 };
 
+/* ---------------- Library: phone / folder videos (MX style) ----------------
+   Android app (APK): scans all phone videos automatically (MediaStore plugin).
+   New Chrome / PC: folders the user links once are remembered and re-scanned.
+   Older Chrome: folder picker for this visit only, plus an "update Chrome" hint. */
+const NATIVE = !!window.Capacitor?.isNativePlatform?.();
+const MediaScan = NATIVE ? (window.Capacitor.Plugins?.MediaScan || window.Capacitor.registerPlugin?.('MediaScan')) : null;
+const APK_URL = 'https://github.com/Sandeep-1407/sp02-player/releases/latest';
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+const CHROME_V = +((/Chrome\/(\d+)/.exec(navigator.userAgent) || [])[1] || 0);
+const VIDEO_EXT = /^(mp4|m4v|mkv|webm|mov|avi|wmv|asf|flv|3gp|3g2|ts|m2ts|mts|mpg|mpeg|vob|ogv|rm|rmvb|divx|f4v)$/;
+const L = {
+  en: { folders: 'Folders', all: 'All videos', recent: 'Recent', sortNew: 'Newest', sortName: 'Name', sortSize: 'Size', videos: 'videos',
+    addFolder: '📁 Add folder', refresh: 'Refresh', scanning: 'Finding videos…', none: 'No videos found yet.',
+    allowTitle: 'Show all videos on this phone', allowBtn: '✅ Allow video access', allowNote: 'SP02 only reads your videos to list and play them. Nothing is uploaded.',
+    linked: 'folders linked. Tap Refresh to open them.', oldChrome: 'Your Chrome is old (v{v}), so folders cannot be remembered. Update Chrome from Play Store, or install the SP02 Android app which finds every video automatically.',
+    noFolderApi: 'This browser cannot remember folders. The picked folder works only for this visit.', getApk: '📲 Get Android app (auto scan)',
+    sessionNote: 'Shown for this visit only.', removeFolder: 'Remove', manage: 'Linked folders', back: '← Back', blocked: 'Android does not allow this folder. Pick a folder inside it (e.g. DCIM/Camera, Movies, WhatsApp Video).' },
+  hi: { folders: 'फ़ोल्डर', all: 'सारी वीडियो', recent: 'हाल की', sortNew: 'नई पहले', sortName: 'नाम', sortSize: 'साइज़', videos: 'वीडियो',
+    addFolder: '📁 फ़ोल्डर जोड़ें', refresh: 'रीफ़्रेश', scanning: 'वीडियो खोजी जा रही हैं…', none: 'अभी कोई वीडियो नहीं मिली।',
+    allowTitle: 'इस फ़ोन की सारी वीडियो दिखाएँ', allowBtn: '✅ वीडियो देखने की अनुमति दें', allowNote: 'SP02 सिर्फ़ आपकी वीडियो की लिस्ट बनाने और चलाने के लिए पढ़ता है। कुछ भी अपलोड नहीं होता।',
+    linked: 'फ़ोल्डर जुड़े हैं। खोलने के लिए रीफ़्रेश दबाएँ।', oldChrome: 'आपका Chrome पुराना है (v{v}), इसलिए फ़ोल्डर याद नहीं रह सकते। Play Store से Chrome अपडेट करें, या SP02 Android ऐप इंस्टॉल करें जो सारी वीडियो अपने आप ढूँढता है।',
+    noFolderApi: 'यह ब्राउज़र फ़ोल्डर याद नहीं रख सकता। चुना फ़ोल्डर सिर्फ़ इस बार चलेगा।', getApk: '📲 Android ऐप लें (अपने आप स्कैन)',
+    sessionNote: 'सिर्फ़ इस बार के लिए दिख रही हैं।', removeFolder: 'हटाएँ', manage: 'जुड़े फ़ोल्डर', back: '← वापस', blocked: 'Android यह फ़ोल्डर चुनने नहीं देता। इसके अंदर का फ़ोल्डर चुनें (जैसे DCIM/Camera, Movies, WhatsApp Video)।' },
+};
+const lt = (k) => L[lang]?.[k] ?? L.en[k];
+
+// small IndexedDB store: linked folder handles + thumbnail/duration cache
+const IDB = (() => {
+  let p;
+  const open = () => p || (p = new Promise((res, rej) => {
+    const r = indexedDB.open('sp02', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('meta'); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  const run = async (st, mode, fn) => { const d = await open(); return new Promise((res, rej) => { const tx = d.transaction(st, mode); const q = fn(tx.objectStore(st)); tx.oncomplete = () => res(q?.result); tx.onerror = () => rej(tx.error); }); };
+  return { get: (st, k) => run(st, 'readonly', (s) => s.get(k)).catch(() => undefined), put: (st, k, v) => run(st, 'readwrite', (s) => s.put(v, k)).catch(() => {}) };
+})();
+
+let libItems = [];        // { name, size, type, lastModified, folder, duration, url?, file?, nid? }
+let libSession = false;   // true when items come from a one-time folder pick
+let libView = { tab: 'folders', folder: null, sort: store.get('libSort', 'new') };
+let libBusy = false;
+const metaKey = (it) => `${it.name}|${it.size}|${it.lastModified}`;
+const thumbCache = new Map();
+
+function setBanner(html) { const b = $('#banner'); b.innerHTML = html || ''; b.classList.toggle('hidden', !html); }
+function libSet(items, session) {
+  libItems = items; libSession = !!session;
+  $('#home').classList.toggle('has-lib', items.length > 0);
+  renderLib();
+}
+
+/* ---- Android app: MediaStore ---- */
+async function nativeScan(ask) {
+  try {
+    let ok = (await MediaScan.checkAccess()).granted;
+    if (!ok && ask) ok = (await MediaScan.requestAccess()).granted;
+    if (!ok) {
+      setBanner(`<b>${esc(lt('allowTitle'))}</b><p>${esc(lt('allowNote'))}</p><button class="btn primary" id="allowBtn">${esc(lt('allowBtn'))}</button>`);
+      $('#allowBtn').onclick = () => nativeScan(true);
+      return;
+    }
+    setBanner('');
+    libBusy = true; renderLib();
+    const { videos } = await MediaScan.listVideos();
+    libBusy = false;
+    libSet(videos.map((v) => ({
+      name: v.name, size: v.size, type: v.mime || '', lastModified: v.date * 1000, duration: v.duration / 1000,
+      folder: v.folder || lt('folders'), nid: String(v.id), url: window.Capacitor.convertFileSrc(v.path || v.uri),
+    })), false);
+  } catch (e) { libBusy = false; renderLib(); toast(String(e?.message || e).slice(0, 120), 4000); }
+}
+
+/* ---- Browser: linked folders ---- */
+async function walkDir(dir, path, out, depth) {
+  for await (const h of dir.values()) {
+    if (h.name.startsWith('.')) continue;
+    if (h.kind === 'directory') { if (depth < 6) await walkDir(h, path + '/' + h.name, out, depth + 1); }
+    else if (VIDEO_EXT.test(extOf(h.name))) {
+      try { const f = await h.getFile(); f.folder = path; out.push(f); } catch {}
+    }
+  }
+}
+async function scanRoots(ask) {
+  const roots = (await IDB.get('kv', 'roots')) || [];
+  if (!roots.length) { libSet([], false); return; }
+  const out = []; let waiting = 0;
+  libBusy = true; renderLib();
+  for (const r of roots) {
+    let perm = 'granted';
+    try { perm = await r.queryPermission({ mode: 'read' }); if (perm !== 'granted' && ask) perm = await r.requestPermission({ mode: 'read' }); } catch { perm = 'denied'; }
+    if (perm !== 'granted') { waiting++; continue; }
+    try { await walkDir(r, r.name, out, 0); } catch {}
+  }
+  libBusy = false;
+  if (waiting && !out.length) setBanner(`<p>📁 ${roots.length} ${esc(lt('linked'))}</p><button class="btn primary" id="permBtn">🔄 ${esc(lt('refresh'))}</button>`);
+  else setBanner('');
+  $('#permBtn')?.addEventListener('click', () => scanRoots(true));
+  libSet(out, false);
+}
+async function addFolder() {
+  if ('showDirectoryPicker' in window) {
+    try {
+      const dir = await window.showDirectoryPicker({ id: 'sp02-videos', mode: 'read' });
+      const roots = (await IDB.get('kv', 'roots')) || [];
+      let dup = false; for (const r of roots) { try { if (await r.isSameEntry(dir)) dup = true; } catch {} }
+      if (!dup) { roots.push(dir); await IDB.put('kv', 'roots', roots); }
+      await scanRoots(false);
+    } catch (e) { if (e?.name === 'SecurityError' || e?.name === 'NotAllowedError') toast(lt('blocked'), 5000); }
+  } else $('#dirInput').click();
+}
+$('#dirInput').onchange = (e) => {
+  const fs = [...e.target.files].filter((f) => VIDEO_EXT.test(extOf(f.name)));
+  e.target.value = '';
+  fs.forEach((f) => { f.folder = (f.webkitRelativePath || f.name).split('/').slice(0, -1).join('/') || lt('folders'); });
+  if (fs.length) libSet(libItems.filter((x) => !x.file && x instanceof File).concat(fs), true); else toast(lt('none'));
+};
+$('#folderBtn').classList.remove('hidden');
+$('#folderBtn').onclick = () => (NATIVE ? nativeScan(true) : addFolder());
+
+/* ---- Thumbnails (lazy) ---- */
+const thumbQ = []; let thumbRunning = 0;
+const thumbIO = new IntersectionObserver((ents) => {
+  for (const e of ents) if (e.isIntersecting) { thumbIO.unobserve(e.target); thumbQ.push(e.target); pumpThumbs(); }
+}, { rootMargin: '300px' });
+function pumpThumbs() {
+  while (thumbRunning < 2 && thumbQ.length) {
+    const el = thumbQ.shift(); const it = libItems[+el.dataset.i]; if (!it) continue;
+    thumbRunning++;
+    getThumb(it).then((u) => {
+      if (u) { el.style.backgroundImage = `url("${u}")`; el.classList.add('has'); }
+      const d = el.querySelector('.d'); if (d && it.duration) d.textContent = fmt(it.duration);
+      const pb = el.querySelector('.pb i'); if (pb && it.duration) pb.style.width = Math.min(100, store.get(posKey(it), 0) / it.duration * 100) + '%';
+    }).finally(() => { thumbRunning--; pumpThumbs(); });
+  }
+}
+async function getThumb(it) {
+  const k = metaKey(it);
+  if (thumbCache.has(k)) return thumbCache.get(k);
+  let th = null;
+  if (NATIVE && it.nid) { try { th = (await MediaScan.thumbnail({ id: it.nid })).data; } catch {} }
+  else {
+    const m = await IDB.get('meta', k);
+    if (m) { th = m.th; if (!it.duration) it.duration = m.d; }
+    else {
+      const r = await captureThumb(it.file || it);
+      th = r.th; it.duration = it.duration || r.d;
+      IDB.put('meta', k, { th, d: it.duration });
+    }
+  }
+  thumbCache.set(k, th);
+  return th;
+}
+function captureThumb(blob) {
+  return new Promise((resolve) => {
+    const vid = document.createElement('video'); vid.muted = true; vid.preload = 'metadata'; vid.playsInline = true;
+    const url = blob.url || URL.createObjectURL(blob); let done = false;
+    const fin = (o) => { if (done) return; done = true; if (!blob.url) URL.revokeObjectURL(url); vid.removeAttribute('src'); vid.load(); resolve(o); };
+    vid.onloadedmetadata = () => {
+      const d = vid.duration;
+      vid.onseeked = () => {
+        try {
+          const c = document.createElement('canvas'); c.width = 192; c.height = 108; const g = c.getContext('2d');
+          const r = Math.max(c.width / (vid.videoWidth || 16), c.height / (vid.videoHeight || 9));
+          const w = (vid.videoWidth || 16) * r, h = (vid.videoHeight || 9) * r;
+          g.drawImage(vid, (c.width - w) / 2, (c.height - h) / 2, w, h);
+          fin({ th: vid.videoWidth ? c.toDataURL('image/jpeg', 0.6) : null, d: isFinite(d) ? d : 0 });
+        } catch { fin({ th: null, d: isFinite(d) ? d : 0 }); }
+      };
+      vid.currentTime = Math.min(2, (isFinite(d) ? d : 10) * 0.1);
+      setTimeout(() => fin({ th: null, d: isFinite(d) ? d : 0 }), 5000);
+    };
+    vid.onerror = () => fin({ th: null, d: 0 });
+    setTimeout(() => fin({ th: null, d: 0 }), 8000);
+    vid.src = url;
+  });
+}
+
+/* ---- Render ---- */
+function sortItems(arr) {
+  const s = arr.slice();
+  if (libView.sort === 'name') s.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  else if (libView.sort === 'size') s.sort((a, b) => b.size - a.size);
+  else s.sort((a, b) => b.lastModified - a.lastModified);
+  return s;
+}
+const folderName = (f) => f.split('/').filter(Boolean).pop() || f;
+function vRow(it) {
+  const i = libItems.indexOf(it);
+  const date = it.lastModified ? new Date(it.lastModified).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  return `<div class="vrow" data-play="${i}"><div class="th" data-i="${i}"><span class="d">${it.duration ? fmt(it.duration) : ''}</span><span class="pb"><i></i></span></div>
+    <div class="vt"><b>${esc(it.name)}</b><small>${esc(folderName(it.folder || ''))} · ${fmtSize(it.size)}${date ? ' · ' + date : ''}</small></div></div>`;
+}
+let libListCtx = [];
+function renderLib() {
+  const box = $('#lib'); if (!box) return;
+  const has = libItems.length > 0;
+  box.classList.toggle('hidden', !has && !libBusy);
+  if (!has && !libBusy) return;
+  const tabs = [['folders', lt('folders')], ['all', lt('all')], ['recent', lt('recent')]];
+  $('#libTabs').innerHTML = tabs.map(([k, l]) => `<button class="chip ${libView.tab === k && !libView.folder ? 'on' : ''}" data-tab="${k}">${esc(l)}</button>`).join('');
+  $('#libSort').innerHTML = [['new', lt('sortNew')], ['name', lt('sortName')], ['size', lt('sortSize')]].map(([v, l]) => `<option value="${v}" ${libView.sort === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  const list = $('#libList');
+  if (libBusy) { list.innerHTML = `<p class="libnote">⏳ ${esc(lt('scanning'))}</p>`; return; }
+  let html = libSession ? `<p class="libnote">${esc(lt('sessionNote'))}</p>` : '';
+  if (libView.folder != null) {
+    const items = sortItems(libItems.filter((x) => (x.folder || '') === libView.folder));
+    libListCtx = items;
+    html += `<div class="fhead"><button class="chip" id="libBack">${esc(lt('back'))}</button><b>📁 ${esc(folderName(libView.folder))}</b><small>${items.length} ${esc(lt('videos'))}</small></div>` + items.map(vRow).join('');
+  } else if (libView.tab === 'folders') {
+    const m = new Map();
+    for (const it of libItems) { const k = it.folder || ''; if (!m.has(k)) m.set(k, []); m.get(k).push(it); }
+    const folders = [...m.entries()].sort((a, b) => Math.max(...b[1].map((x) => x.lastModified)) - Math.max(...a[1].map((x) => x.lastModified)));
+    html += folders.map(([k, arr]) => {
+      const first = sortItems(arr)[0]; const i = libItems.indexOf(first);
+      const size = arr.reduce((a, x) => a + x.size, 0);
+      return `<div class="vrow" data-folder="${esc(k)}"><div class="th folder" data-i="${i}"><span class="fi">📁</span></div>
+        <div class="vt"><b>${esc(folderName(k))}</b><small>${arr.length} ${esc(lt('videos'))} · ${fmtSize(size)}${k.includes('/') ? ' · ' + esc(k) : ''}</small></div></div>`;
+    }).join('');
+  } else {
+    const items = libView.tab === 'recent' ? libItems.slice().sort((a, b) => b.lastModified - a.lastModified).slice(0, 60) : sortItems(libItems);
+    libListCtx = items;
+    html += items.map(vRow).join('');
+  }
+  list.innerHTML = html;
+  list.querySelectorAll('.th[data-i]').forEach((el) => {
+    const it = libItems[+el.dataset.i]; const c = it && thumbCache.get(metaKey(it));
+    if (c) { el.style.backgroundImage = `url("${c}")`; el.classList.add('has'); }
+    if (it) { const pb = el.querySelector('.pb i'); if (pb && it.duration) pb.style.width = Math.min(100, store.get(posKey(it), 0) / it.duration * 100) + '%'; }
+    if (!c) thumbIO.observe(el);
+  });
+  $('#libBack')?.addEventListener('click', () => { libView.folder = null; renderLib(); });
+}
+$('#libTabs').onclick = (e) => { const b = e.target.closest('[data-tab]'); if (!b) return; libView.tab = b.dataset.tab; libView.folder = null; renderLib(); };
+$('#libSort').onchange = (e) => { libView.sort = e.target.value; store.set('libSort', libView.sort); renderLib(); };
+$('#libRefresh').onclick = () => (NATIVE ? nativeScan(true) : scanRoots(true));
+$('#libList').onclick = (e) => {
+  const f = e.target.closest('[data-folder]'); if (f) { libView.folder = f.dataset.folder; renderLib(); scrollTo(0, $('#lib').offsetTop - 70); return; }
+  const r = e.target.closest('[data-play]'); if (!r) return;
+  const it = libItems[+r.dataset.play];
+  const ctx = libListCtx.length ? libListCtx : [it];
+  openFiles(ctx.map((x) => x.file || x), Math.max(0, ctx.indexOf(it)), true);
+};
+
+/* ---- Start ---- */
+(async () => {
+  if (NATIVE) {
+    $('#home').classList.add('native');
+    nativeScan(false);
+    return;
+  }
+  if (IS_ANDROID) $('#apkBtn').classList.remove('hidden');
+  $('#apkBtn').href = APK_URL;
+  if (!('showDirectoryPicker' in window)) {
+    if (IS_ANDROID && CHROME_V && CHROME_V < 132) setBanner(`<p>⚠ ${esc(lt('oldChrome').replace('{v}', CHROME_V))}</p>`);
+    else if (IS_ANDROID) setBanner(`<p>ℹ ${esc(lt('noFolderApi'))}</p>`);
+  }
+  await scanRoots(false);
+})();
+
+// read-only hook for automated tests
+window.__sp02lib = { get state() { return { items: libItems.length, session: libSession, busy: libBusy, tab: libView.tab, folder: libView.folder }; } };
+
+
 /* ---------------- Install + offline ---------------- */
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; $('#installBtn').classList.remove('hidden'); });
 $('#installBtn').onclick = async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; $('#installBtn').classList.add('hidden'); };
 window.addEventListener('appinstalled', () => $('#installBtn').classList.add('hidden'));
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+if ('serviceWorker' in navigator && !(window.Capacitor?.isNativePlatform?.())) navigator.serviceWorker.register('./sw.js').catch(() => {});
 
 applyI18n();
 

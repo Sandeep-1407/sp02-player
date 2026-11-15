@@ -42,6 +42,45 @@ header h1 small{display:block;font-size:11px;color:var(--muted);font-weight:500}
 .tips{margin-top:16px;display:grid;gap:10px}
 .tip{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;font-size:14px;color:var(--muted)}
 .tip b{color:var(--text);display:block;margin-bottom:2px}.tip .ic{font-size:22px}
+
+/* library */
+.actions{display:grid;gap:10px}
+a.btn{text-decoration:none;margin-top:10px}
+#home.has-lib .hero,#home.has-lib .badges,#home.has-lib .tips,#home.has-lib .drop{display:none}
+#home.has-lib .actions{grid-template-columns:1fr 1fr;margin-top:6px}
+#home.has-lib .actions .btn{padding:11px 10px;font-size:14px}
+#home.has-lib #apkBtn{padding:10px;font-size:14px}
+#home.native .drop,#home.native #pickBtn,#home.native .tips,#home.native #folderBtn{display:none}
+#home.native .actions{grid-template-columns:1fr}
+.banner{margin-top:12px;padding:12px 14px;border-radius:14px;border:1px solid var(--gold);background:rgba(232,190,92,.1);font-size:14px;line-height:1.5}
+.banner b{display:block;color:var(--gold2);margin-bottom:4px}.banner p{color:var(--text)}
+.banner .btn{margin-top:10px}
+#lib{margin-top:14px}
+.libbar{display:flex;align-items:center;gap:6px;position:sticky;top:56px;z-index:4;padding:8px 0;background:rgba(18,16,62,.92);backdrop-filter:blur(8px)}
+.libbar .chips{flex:1;min-width:0;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.libbar .chips::-webkit-scrollbar{display:none}
+.libbar .chip{flex:none;border:1px solid var(--line);background:rgba(255,255,255,.05);border-radius:999px;padding:7px 12px;font-size:13px;color:var(--text);cursor:pointer}
+.libbar .chip.on{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#24104f;border-color:transparent;font-weight:700}
+.libbar select{color:var(--text);background:var(--card);max-width:96px}
+.libbar select option{color:#000}
+.libnote{color:var(--muted);font-size:13px;margin:8px 2px}
+.fhead{display:flex;align-items:center;gap:10px;margin:8px 0}
+.fhead .chip{border:1px solid var(--line);background:rgba(255,255,255,.05);border-radius:999px;padding:6px 12px;color:var(--text);cursor:pointer}
+.fhead b{color:var(--gold2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fhead small{color:var(--muted)}
+.vrow{display:flex;gap:12px;align-items:center;padding:7px 4px;border-radius:12px;cursor:pointer;min-width:0}
+.vrow:active,.vrow:hover{background:rgba(255,255,255,.05)}
+.vrow .th{position:relative;width:128px;height:72px;flex:none;border-radius:10px;overflow:hidden;background:linear-gradient(135deg,#3a1d7a,#1b2466) center/cover no-repeat;display:grid;place-items:center}
+.vrow .th:not(.has)::before{content:"🎬";font-size:22px;opacity:.6}
+.vrow .th.folder::before{content:none}
+.vrow .th .fi{font-size:28px;position:absolute;right:6px;bottom:2px;filter:drop-shadow(0 1px 2px #000)}
+.vrow .th.folder:not(.has) .fi{position:static;font-size:30px}
+.vrow .th .d{position:absolute;right:5px;bottom:6px;font-size:11px;font-weight:700;background:rgba(0,0,0,.7);padding:1px 5px;border-radius:5px}
+.vrow .th .d:empty{display:none}
+.vrow .th .pb{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.15)}
+.vrow .th .pb i{display:block;height:100%;width:0;background:var(--gold)}
+.vrow .vt{flex:1;min-width:0}
+.vrow .vt b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vrow .vt small{display:block;color:var(--muted);font-size:12px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px}
 
 /* ---------- Player ---------- */
@@ -141,10 +180,19 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px}
     <span class="badge" data-i18n="f5">🔊 Boost 200%</span><span class="badge" data-i18n="f6">🎚 Equalizer</span>
     <span class="badge" data-i18n="f7">🔁 A-B repeat</span><span class="badge" data-i18n="f8">📸 Screenshot</span>
   </div>
-  <button class="btn primary" id="pickBtn"><span>🎬</span><span data-i18n="pick">Open videos</span></button>
-  <button class="btn ghost hidden" id="folderBtn"><span>📁</span><span data-i18n="folder">Open a folder</span></button>
+  <div class="actions">
+    <button class="btn primary" id="pickBtn"><span>🎬</span><span data-i18n="pick">Open videos</span></button>
+    <button class="btn ghost" id="folderBtn"><span>📁</span><span data-i18n="folder">Add folder</span></button>
+  </div>
+  <a class="btn ghost hidden" id="apkBtn" target="_blank" rel="noopener"><span>📲</span><span data-i18n="apk">Get Android app (auto scan)</span></a>
+  <input type="file" id="dirInput" webkitdirectory multiple hidden>
   <input type="file" id="fileInput" accept="video/*,audio/*,.mkv,.avi,.wmv,.flv,.ts,.m2ts,.mts,.vob,.mpg,.mpeg,.3gp,.asf,.ogv,.rmvb,.rm" multiple hidden>
   <div class="drop" id="drop" data-i18n="drop">Or drag & drop videos here (PC)</div>
+  <div id="banner" class="banner hidden"></div>
+  <section id="lib" class="hidden">
+    <div class="libbar"><div class="chips" id="libTabs"></div><select id="libSort" class="pill"></select><button class="pill" id="libRefresh" aria-label="Refresh">🔄</button></div>
+    <div id="libList"></div>
+  </section>
   <div class="tips">
     <div class="tip"><span class="ic">📲</span><div><b data-i18n="t1h">Mobile</b><span data-i18n="t1">Gallery → video → Share → SP02</span></div></div>
     <div class="tip"><span class="ic">🖥</span><div><b data-i18n="t2h">PC</b><span data-i18n="t2">Right-click video → Open with → SP02 (after installing)</span></div></div>
